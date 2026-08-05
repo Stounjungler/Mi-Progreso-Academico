@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800;900&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
     :root {
         --navy-950: #eef1f8; --navy-900: #ffffff; --navy-800: #ffffff; --navy-700: #eef1f8;
@@ -449,9 +450,9 @@
         <div class="login-logo">🎓</div>
         <h1>Mi Progreso Académico</h1>
         <p>Inicia sesión con tu cuenta de Google para guardar tus notas en la nube y acceder desde cualquier dispositivo.</p>
-        <button id="btnLoginGoogle" class="btn btn-primary" style="width:100%; margin-top:10px;" onclick="iniciarSesionConGoogle()">
-            <svg width="16" height="16" viewBox="0 0 48 48" style="vertical-align:-3px; margin-right:8px;"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l6-6C34.5 5.1 29.5 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21 21-9.4 21-21c0-1.4-.1-2.7-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.5 15.3 18.9 12 24 12c3.1 0 5.8 1.1 8 3l6-6C34.5 5.1 29.5 3 24 3c-7.7 0-14.4 4.3-17.7 10.7z"/><path fill="#4CAF50" d="M24 45c5.4 0 10.3-1.8 14.1-5l-6.5-5.5C29.6 36.1 26.9 37 24 37c-5.3 0-9.7-3.3-11.3-8l-6.6 5.1C9.5 40.6 16.2 45 24 45z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.2-4.2 5.6l6.5 5.5C41.8 36 45 30.5 45 24c0-1.4-.1-2.7-.4-3.5z"/></svg>
-            Continuar con Google
+        <div id="googleButtonDiv" style="display:flex; justify-content:center; margin-top:14px; min-height:44px;"></div>
+        <button id="btnLoginGoogle" class="btn btn-ghost" style="width:100%; margin-top:8px; font-size:12px; display:none;" onclick="iniciarSesionConGoogle()">
+            ¿No aparece el botón de Google? Iniciar sesión de otra forma
         </button>
         <p id="loginEstadoMsg" class="login-estado-msg"></p>
     </div>
@@ -1892,7 +1893,7 @@ actualizarBotonDeshacer();
    ====================================================================== */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
 import {
-    getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged
+    getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signInWithCredential, signOut, onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
 import {
     getFirestore, doc, getDoc, setDoc, onSnapshot
@@ -1911,6 +1912,60 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const proveedorGoogle = new GoogleAuthProvider();
+
+/* ---- Login vía Google Identity Services (GIS) ----
+   En vez de saltar a otro dominio (firebaseapp.com) y volver —lo que rompe en navegadores
+   que bloquean memoria/almacenamiento entre dominios distintos (Brave, Safari, y cada vez
+   más navegadores)—, esto entrega el token de Google directo en esta misma página, sin
+   redirigir a ningún lado. Es el método que usa Google actualmente para estos casos.
+   El botón clásico (signInWithPopup/Redirect) queda como respaldo por si el script de
+   Google no llega a cargar (por ejemplo, por un bloqueador de anuncios agresivo). */
+const GIS_CLIENT_ID = "1038222056684-s3qf3m755icor2upin11flfs4e0js7jo.apps.googleusercontent.com";
+
+async function manejarCredencialGoogle(respuesta) {
+    const msg = document.getElementById('loginEstadoMsg');
+    if (msg) msg.textContent = '';
+    try {
+        const credential = GoogleAuthProvider.credential(respuesta.credential);
+        await signInWithCredential(auth, credential);
+    } catch (e) {
+        console.error(e);
+        if (msg) msg.textContent = 'No se pudo iniciar sesión. Intenta de nuevo.';
+    }
+}
+window.manejarCredencialGoogle = manejarCredencialGoogle;
+
+function inicializarGoogleIdentity() {
+    const boton = document.getElementById('googleButtonDiv');
+    const fallback = document.getElementById('btnLoginGoogle');
+    if (!window.google || !window.google.accounts || !window.google.accounts.id) {
+        // El script de Google no cargó: dejamos visible el botón clásico como respaldo.
+        if (fallback) fallback.style.display = 'block';
+        return;
+    }
+    try {
+        google.accounts.id.initialize({
+            client_id: GIS_CLIENT_ID,
+            callback: manejarCredencialGoogle,
+            auto_select: false,
+            ux_mode: 'popup'
+        });
+        if (boton) {
+            google.accounts.id.renderButton(boton, {
+                type: 'standard', theme: 'filled_blue', size: 'large',
+                text: 'continue_with', shape: 'rectangular', width: 300
+            });
+        }
+    } catch (e) {
+        console.error(e);
+        if (fallback) fallback.style.display = 'block';
+    }
+}
+if (window.google && window.google.accounts && window.google.accounts.id) {
+    inicializarGoogleIdentity();
+} else {
+    window.addEventListener('load', inicializarGoogleIdentity);
+}
 
 const LS_RAMOS = 'malla_unif_ramos';
 const LS_CARRERA = 'malla_unif_carrera_activa';
