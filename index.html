@@ -445,7 +445,7 @@
 </div>
 
 <div id="loginOverlay" class="login-overlay">
-    <div class="login-card">
+    <div class="login-card" id="loginCardNormal">
         <div class="login-logo">🎓</div>
         <h1>Mi Progreso Académico</h1>
         <p>Inicia sesión con tu cuenta de Google para guardar tus notas en la nube y acceder desde cualquier dispositivo.</p>
@@ -455,7 +455,54 @@
         </button>
         <p id="loginEstadoMsg" class="login-estado-msg"></p>
     </div>
+
+    <div class="login-card" id="loginCardNavegadorInterno" style="display:none;">
+        <div class="login-logo">⚠️</div>
+        <h1>Abrí esta página en tu navegador</h1>
+        <p>Estás viendo esta página dentro de WhatsApp, Instagram u otra app. Google no permite iniciar sesión desde ahí por seguridad.</p>
+        <p style="margin-top:10px;">Tocá el botón para abrirla en tu navegador (Chrome / Safari):</p>
+        <button id="btnAbrirEnNavegador" class="btn btn-primary" style="width:100%; margin-top:10px;" onclick="abrirEnNavegadorReal()">
+            Abrir en el navegador
+        </button>
+        <p style="margin-top:12px; font-size:12px;">Si no pasa nada, tocá los <b>tres puntos ⋮</b> (o el ícono de compartir) arriba a la derecha y elegí <b>"Abrir en el navegador"</b> o "Abrir en Chrome/Safari".</p>
+    </div>
 </div>
+
+<script>
+/* ---- Detección de navegador integrado (WhatsApp, Instagram, Facebook, etc.) ----
+   Google bloquea el login OAuth dentro de estos "mini navegadores" embebidos en otras apps,
+   así que en vez de dejar que el usuario intente (y falle en un loop confuso), lo detectamos
+   apenas carga la página y le mostramos un aviso para que la abra en su navegador real. */
+(function () {
+    const ua = navigator.userAgent || '';
+    const esNavegadorIntegrado = /(WhatsApp|Instagram|FBAN|FBAV|FB_IAB|Line\/|MicroMessenger|TikTok|Twitter)/i.test(ua)
+        || (/; wv\)/i.test(ua)); // marca típica de WebView de Android embebido en otra app
+
+    if (esNavegadorIntegrado) {
+        document.addEventListener('DOMContentLoaded', () => {
+            const overlay = document.getElementById('loginOverlay');
+            const cardNormal = document.getElementById('loginCardNormal');
+            const cardAviso = document.getElementById('loginCardNavegadorInterno');
+            if (overlay) overlay.style.display = 'flex';
+            if (cardNormal) cardNormal.style.display = 'none';
+            if (cardAviso) cardAviso.style.display = 'block';
+        });
+    }
+
+    window.abrirEnNavegadorReal = function () {
+        const url = window.location.href;
+        const esIOS = /iPhone|iPad|iPod/i.test(ua);
+        if (esIOS) {
+            // Este esquema fuerza la apertura en Safari incluso desde dentro de otra app en iOS.
+            window.location.href = url.replace(/^https:\/\//i, 'x-safari-https://');
+        } else {
+            // En Android, intenta forzar la apertura en Chrome específicamente.
+            const sinEsquema = url.replace(/^https?:\/\//i, '');
+            window.location.href = 'intent://' + sinEsquema + '#Intent;scheme=https;package=com.android.chrome;end';
+        }
+    };
+})();
+</script>
 
 <div class="container">
     <header>
