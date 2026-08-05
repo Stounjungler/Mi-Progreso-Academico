@@ -1845,7 +1845,7 @@ actualizarBotonDeshacer();
    ====================================================================== */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
 import {
-    getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged
+    getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
 import {
     getFirestore, doc, getDoc, setDoc, onSnapshot
@@ -1964,16 +1964,42 @@ function mostrarInfoUsuario(user) {
     }
 }
 
+// En celulares (y en navegadores que bloquean ventanas emergentes/cookies de terceros,
+// como Brave con Shields activado) el login por popup suele fallar en silencio.
+// Ahí usamos signInWithRedirect: navega a Google y vuelve a esta misma página.
+const esMovil = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
 window.iniciarSesionConGoogle = async () => {
     const msg = document.getElementById('loginEstadoMsg');
     if (msg) msg.textContent = '';
     try {
+        if (esMovil) {
+            await signInWithRedirect(auth, proveedorGoogle);
+            return; // la página se recarga al volver de Google; el resultado se procesa más abajo
+        }
         await signInWithPopup(auth, proveedorGoogle);
     } catch (e) {
         console.error(e);
+        // Si el popup falla en escritorio (bloqueado, cookies de terceros, etc.), reintenta con redirect.
+        if (!esMovil) {
+            try {
+                await signInWithRedirect(auth, proveedorGoogle);
+                return;
+            } catch (e2) {
+                console.error(e2);
+            }
+        }
         if (msg) msg.textContent = 'No se pudo iniciar sesión. Intenta de nuevo.';
     }
 };
+
+// Al volver de Google (flujo por redirect), Firebase deja el resultado acá.
+// Si hubo un error real en el redirect, lo mostramos; si no, onAuthStateChanged se encarga del resto.
+getRedirectResult(auth).catch((e) => {
+    console.error(e);
+    const msg = document.getElementById('loginEstadoMsg');
+    if (msg) msg.textContent = 'No se pudo iniciar sesión. Intenta de nuevo.';
+});
 
 window.cerrarSesionUsuario = async () => {
     if (unsubscribeNube) { unsubscribeNube(); unsubscribeNube = null; }
