@@ -541,11 +541,9 @@
         <div class="toolbar">
             <span style="font-size:12px; color:var(--text-muted); max-width:520px;">Motor de cálculo real: cátedra, ejercicios, laboratorio, PAR, recuperativo y umbrales editables — el mismo que usas en el dashboard.</span>
             <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                <button id="btnDeshacer" class="btn btn-ghost" onclick="deshacerUltimoCambio()" title="Revertir el último cambio guardado" disabled>↩️ Deshacer</button>
                 <button class="btn btn-ghost" onclick="descargarRespaldo()" title="Descarga un archivo .json con todos tus ramos">⬇️ Descargar respaldo</button>
                 <button class="btn btn-ghost" onclick="activarInputRespaldo()" title="Restaura tus ramos desde un archivo .json de respaldo">⬆️ Restaurar respaldo</button>
                 <input type="file" id="inputRespaldo" accept="application/json,.json" style="display:none" onchange="manejarArchivoRespaldo(event)">
-                <button class="btn btn-primary" onclick="agregarRamo()">+ Nuevo Ramo</button>
             </div>
         </div>
         <main class="grid-ramos" id="grid-ramos"></main>
